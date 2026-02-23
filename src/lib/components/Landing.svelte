@@ -65,7 +65,7 @@
       </button>
       <div class="flex items-center gap-2">
         <a
-          href="https://github.com"
+          href="https://github.com/Sovai/image-tools"
           target="_blank"
           rel="noopener noreferrer"
           class="p-2 rounded-full hover:bg-stone-100 dark:hover:bg-(--hover-bg) text-stone-600 dark:text-stone-400 transition-colors"
