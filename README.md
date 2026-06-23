@@ -1,47 +1,61 @@
-# Svelte + TS + Vite
+# Image Tools
 
-This template should help get you started developing with Svelte and TypeScript in Vite.
+A 100% client-side browser app for **losslessly optimizing** and **quality-checking** image assets (great for design exports). No backend, no uploads — every byte is processed in your browser using WebAssembly codecs running in Web Workers.
 
-## Recommended IDE Setup
+## What it does
 
-[VS Code](https://code.visualstudio.com/) + [Svelte](https://marketplace.visualstudio.com/items?itemName=svelte.svelte-vscode).
+**Raster (PNG / JPEG / WebP)** — decodes each image once, then produces:
 
-## Need an official Svelte framework?
+| Output                | Codec                       | Fidelity |
+| --------------------- | --------------------------- | -------- |
+| Optimized original    | oxipng (PNG) · mozjpeg (JPEG) · WebP lossless | lossless\* |
+| **PNG (quantized)** — PNG sources only | `image-q` (≤256-color palette + Floyd–Steinberg dither) → oxipng 8-bit palette PNG | visually lossless |
+| **Express (WebP)** — PNG sources only | the quantized pixels, re-encoded as lossless WebP — usually the smallest output of all | visually lossless |
+| Lossless WebP         | `@jsquash/webp` `lossless: 1` (from the original pixels) | lossless |
+| Lossless AVIF         | `@jsquash/avif` `lossless: true` | lossless |
 
-Check out [SvelteKit](https://github.com/sveltejs/kit#readme), which is also powered by Vite. Deploy anywhere with its serverless-first approach and adapt to various platforms, with out of the box support for TypeScript, SCSS, and Less, and easily-added support for mdsvex, GraphQL, PostCSS, Tailwind CSS, and more.
+The tool **highlights the smallest output that actually beats the original** and greys out any format that ended up larger (common with lossless AVIF) as _"skip — larger"_. Each output is tagged **lossless** or **visually lossless**. All EXIF/metadata is stripped on output.
 
-## Technical considerations
+> **Lossless vs. visually lossless.** True lossless re-encoding (oxipng) keeps every pixel bit-exact, so its ceiling is modest. Tools like TinyPNG get much smaller files because they're *lossy* — they reduce the image to an optimized color palette (the pngquant approach). The **PNG (quantized)** output does the same: imperceptible on flat UI art and gradients, but not bit-exact. Use the slider compare to verify before shipping.
+>
+> \*JPEG has no true lossless re-encode path in mozjpeg, so the JPEG "optimized original" is a high-quality (q92) visually-lossless re-compression with metadata stripped.
 
-**Why use this over SvelteKit?**
+**SVG** — runs SVGO (multipass, keeps `viewBox`, strips comments/metadata) **and** a DOMParser-based **Health Check** that grades findings as error / warn / info:
 
-- It brings its own routing solution which might not be preferable for some users.
-- It is first and foremost a framework that just happens to use Vite under the hood, not a Vite app.
+- **Performance**: heavy `feGaussianBlur`, expensive primitives (`feTurbulence`, `feDisplacementMap`, …), oversized filter regions, high node counts, complex paths, animated filters, `mix-blend-mode`, nested clip/mask, `<foreignObject>`, embedded raster.
+- **Correctness**: duplicate ids in a file, **cross-file id collisions across the whole batch** (the inline-SVG footgun), dangling `url(#…)` refs, unused defs, missing `viewBox`.
+- **Auto-fix**: namespace every id (`<slug>__<id>`) and rewrite internal refs, eliminating cross-file collisions when SVGs are inlined.
 
-This template contains as little as possible to get started with Vite + TypeScript + Svelte, while taking into account the developer experience with regards to HMR and intellisense. It demonstrates capabilities on par with the other `create-vite` templates and is a good starting point for beginners dipping their toes into a Vite + Svelte project.
+**Batch** — "Download all winners" (smallest per image) and "Download all" (organized by format) as zips via `fflate`, plus a summary header and an SVG batch panel listing every cross-file id collision.
 
-Should you later need the extended capabilities and extensibility provided by SvelteKit, the template has been structured similarly to SvelteKit so that it is easy to migrate.
+## Requirements
 
-**Why `global.d.ts` instead of `compilerOptions.types` inside `jsconfig.json` or `tsconfig.json`?**
+Node **20+** (Vite 6 / Tailwind 4). A `.nvmrc` pins Node 22.
 
-Setting `compilerOptions.types` shuts out all other types not explicitly listed in the configuration. Using triple-slash references keeps the default TypeScript setting of accepting type information from the entire workspace, while also adding `svelte` and `vite/client` type information.
-
-**Why include `.vscode/extensions.json`?**
-
-Other templates indirectly recommend extensions via the README, but this file allows VS Code to prompt the user to install the recommended extension upon opening the project.
-
-**Why enable `allowJs` in the TS template?**
-
-While `allowJs: false` would indeed prevent the use of `.js` files in the project, it does not prevent the use of JavaScript syntax in `.svelte` files. In addition, it would force `checkJs: false`, bringing the worst of both worlds: not being able to guarantee the entire codebase is TypeScript, and also having worse typechecking for the existing JavaScript. In addition, there are valid use cases in which a mixed codebase may be relevant.
-
-**Why is HMR not preserving my local component state?**
-
-HMR state preservation comes with a number of gotchas! It has been disabled by default in both `svelte-hmr` and `@sveltejs/vite-plugin-svelte` due to its often surprising behavior. You can read the details [here](https://github.com/rixo/svelte-hmr#svelte-hmr).
-
-If you have state that's important to retain within a component, consider creating an external store which would not be replaced by HMR.
-
-```ts
-// store.ts
-// An extremely simple external store
-import { writable } from 'svelte/store'
-export default writable(0)
+```bash
+nvm use            # or: nvm install
 ```
+
+## Getting started
+
+```bash
+yarn install
+yarn dev           # start the dev server (http://localhost:5173)
+```
+
+Other scripts:
+
+```bash
+yarn build         # type-check + production build
+yarn preview       # preview the production build
+yarn typecheck     # vue-tsc, no emit
+```
+
+## Stack
+
+Vue 3 (`<script setup>` + TypeScript), Vite, Tailwind CSS v4, lucide icons. Codecs: `@jsquash/{png,oxipng,jpeg,webp,avif}`, `image-q` (PNG quantization), `svgo`, `fflate`. All encoding/decoding runs in Web Workers so the UI never blocks on large batches.
+
+## Notes
+
+- AVIF lossless encoding is CPU-heavy; large images take a few seconds each (workers keep the UI responsive).
+- oxipng uses multi-threading inside the worker when available.

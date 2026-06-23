@@ -1,32 +1,35 @@
 {
   "name": "image-tools",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
   "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vue-tsc -b && vite build",
     "preview": "vite preview",
-    "check": "svelte-check --tsconfig ./tsconfig.app.json && tsc -p tsconfig.node.json"
-  },
-  "devDependencies": {
-    "@sveltejs/vite-plugin-svelte": "^6.2.1",
-    "@tailwindcss/vite": "^4.2.0",
-    "@tsconfig/svelte": "^5.0.6",
-    "@types/jszip": "^3.4.0",
-    "@types/node": "^24.10.1",
-    "autoprefixer": "^10.4.24",
-    "postcss": "^8.5.6",
-    "svelte": "^5.45.2",
-    "svelte-check": "^4.3.4",
-    "tailwindcss": "^4.2.0",
-    "typescript": "~5.9.3",
-    "vite": "^7.3.1"
+    "typecheck": "vue-tsc --noEmit"
   },
   "dependencies": {
-    "@imgly/background-removal": "^1.7.0",
-    "compressorjs": "^1.2.1",
-    "jszip": "^3.10.1",
-    "lucide-svelte": "^0.575.0"
+    "@jsquash/avif": "^2.1.0",
+    "@jsquash/jpeg": "^1.5.0",
+    "@jsquash/oxipng": "^2.3.0",
+    "@jsquash/png": "^3.1.0",
+    "@jsquash/webp": "^1.5.0",
+    "@lucide/vue": "^1.21.0",
+    "fflate": "^0.8.2",
+    "image-q": "^4.0.0",
+    "svgo": "^3.3.2",
+    "vue": "^3.5.13"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.0.0",
+    "@vitejs/plugin-vue": "^5.2.1",
+    "tailwindcss": "^4.0.0",
+    "typescript": "~5.6.3",
+    "vite": "^6.0.7",
+    "vue-tsc": "^2.2.0"
   }
 }
