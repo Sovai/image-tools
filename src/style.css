@@ -1,0 +1,58 @@
+@import 'tailwindcss';
+
+@theme {
+  --font-sans: 'Google Sans', 'Inter', system-ui, Avenir, Helvetica, Arial, sans-serif;
+  --color-bg-primary: var(--bg-color);
+  --color-bg-secondary: var(--bg-secondary);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-border-default: var(--border-color);
+  --color-accent: var(--accent-color);
+  --color-primary: var(--accent-color);
+  --color-hover: var(--hover-bg);
+  --color-card: var(--card-bg);
+  --color-input: var(--input-bg);
+}
+
+@variant dark (&:where(.dark, .dark *));
+
+:root {
+  --bg-color: #f7f7f7;
+  --bg-secondary: #ffffff;
+  --text-primary: #1a1a1a;
+  --text-secondary: #666666;
+  --border-color: #e5e5e5;
+  --accent-color: #dd9925;
+  --hover-bg: #f3f3f3;
+  --card-bg: #ffffff;
+  --input-bg: #fcfcfc;
+}
+
+.dark {
+  --bg-color: #332f2c;
+  --bg-secondary: #3d3935;
+  --text-primary: #fafaf9;
+  --text-secondary: #a8a29e;
+  --border-color: #44403c;
+  --accent-color: #dd9925;
+  --hover-bg: #44403c;
+  --card-bg: #3d3935;
+  --input-bg: #292524;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: var(--bg-color);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+}
+
+#app {
+  min-height: 100vh;
+}
