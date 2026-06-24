@@ -85,6 +85,7 @@ interface Descriptor {
 async function encodeOptimized(mime: string, image: ImageData): Promise<Descriptor | null> {
   switch (mime) {
     case 'image/png': {
+      // level 6 = max compression effort (slow, but smallest lossless output).
       const buffer = await optimisePng(image, { level: 6, interlace: false, optimiseAlpha: true })
       return { label: 'Optimized PNG', mime: 'image/png', ext: 'png', buffer }
     }
@@ -105,22 +106,36 @@ async function encodeOptimized(mime: string, image: ImageData): Promise<Descript
 
 async function process(req: RasterRequest) {
   const originalSize = req.buffer.byteLength
-  const image = await decode(req.mime, req.buffer)
-  post({ type: 'progress', id: req.id, progress: 20 })
 
-  const outputs: RasterOutput[] = []
+  const progress = (progress: number, stage: string) =>
+    post({ type: 'progress', id: req.id, progress, stage })
+
+  // Stream each output to the UI as soon as it's encoded (transferring the
+  // buffer), so formats appear progressively instead of all at the end.
+  const emit = (
+    kind: RasterKind,
+    label: string,
+    mime: string,
+    ext: string,
+    buffer: ArrayBuffer,
+    extra: Partial<Pick<RasterOutput, 'fileTag' | 'lossy'>> = {},
+  ) => {
+    const output = makeOutput(kind, label, mime, ext, buffer, originalSize, extra)
+    post({ type: 'output', id: req.id, output }, [output.buffer])
+  }
+
+  progress(5, 'Decoding…')
+  const image = await decode(req.mime, req.buffer)
 
   // 1. Optimized original (same format). Lossless for PNG/WebP, visually
   //    lossless for JPEG (mozjpeg has no bit-exact re-encode).
+  progress(15, 'Optimizing original…')
   const optimized = await encodeOptimized(req.mime, image)
   if (optimized) {
-    outputs.push(
-      makeOutput('optimized', optimized.label, optimized.mime, optimized.ext, optimized.buffer, originalSize, {
-        lossy: optimized.lossy,
-      }),
-    )
+    emit('optimized', optimized.label, optimized.mime, optimized.ext, optimized.buffer, {
+      lossy: optimized.lossy,
+    })
   }
-  post({ type: 'progress', id: req.id, progress: 30 })
 
   // 2 + 3. Quantized outputs (visually lossless) — only for PNG sources, where
   //    palette reduction is the big win (this is what TinyPNG-style tools do).
@@ -128,44 +143,33 @@ async function process(req: RasterRequest) {
   //    as a lossless WebP ("Express") — WebP's entropy coding beats PNG on the
   //    same indexed pixels, so Express is usually the smallest of all.
   if (req.mime === 'image/png') {
+    progress(30, 'Quantizing colors…')
     const q = quantize(image)
-    post({ type: 'progress', id: req.id, progress: 45 })
 
+    progress(40, 'Encoding quantized PNG…')
     const pngBuf = await optimisePng(q, { level: 6, interlace: false, optimiseAlpha: true })
-    outputs.push(
-      makeOutput('quantized', 'PNG (quantized)', 'image/png', 'png', pngBuf, originalSize, {
-        fileTag: 'min',
-        lossy: true,
-      }),
-    )
-    post({ type: 'progress', id: req.id, progress: 55 })
+    emit('quantized', 'PNG (quantized)', 'image/png', 'png', pngBuf, { fileTag: 'min', lossy: true })
 
+    progress(50, 'Encoding Express WebP…')
     const expressBuf = await encodeWebp(q, { lossless: 1 })
-    outputs.push(
-      makeOutput('express', 'Express (WebP)', 'image/webp', 'webp', expressBuf, originalSize, {
-        fileTag: 'express',
-        lossy: true,
-      }),
-    )
+    emit('express', 'Express (WebP)', 'image/webp', 'webp', expressBuf, { fileTag: 'express', lossy: true })
   }
-  post({ type: 'progress', id: req.id, progress: 65 })
 
   // 4. Lossless WebP from the original pixels (skip if the source is WebP).
   if (req.mime !== 'image/webp') {
+    progress(65, 'Encoding lossless WebP…')
     const buf = await encodeWebp(image, { lossless: 1 })
-    outputs.push(makeOutput('webp', 'WebP', 'image/webp', 'webp', buf, originalSize))
+    emit('webp', 'WebP', 'image/webp', 'webp', buf)
   }
-  post({ type: 'progress', id: req.id, progress: 82 })
 
-  // 5. Lossless AVIF.
+  // 5. Lossless AVIF — by far the slowest step, but we keep the default
+  //    encode effort for the smallest file (the spinner shows it's working).
+  progress(80, 'Encoding AVIF (slowest)…')
   const avifBuf = await encodeAvif(image, { lossless: true })
-  outputs.push(makeOutput('avif', 'AVIF', 'image/avif', 'avif', avifBuf, originalSize))
+  emit('avif', 'AVIF', 'image/avif', 'avif', avifBuf)
 
-  post({ type: 'progress', id: req.id, progress: 100 })
-  post(
-    { type: 'done', id: req.id, outputs },
-    outputs.map((o) => o.buffer),
-  )
+  progress(100, 'Done')
+  post({ type: 'done', id: req.id })
 }
 
 ctx.onmessage = async (e: MessageEvent<RasterRequest>) => {

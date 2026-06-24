@@ -18,6 +18,40 @@ const savedPct = computed(() =>
   props.original.size > 0 ? ((props.original.size - props.optimized.size) / props.original.size) * 100 : 0,
 )
 
+// --- display sizing ---------------------------------------------------------
+// Tiny images (icons, 8×8 test art) are unusable at natural size, so scale the
+// compare box up to a comfortable minimum; large images scale down to fit the
+// viewport. Aspect ratio is preserved so the divider lines up with the pixels.
+const MIN_LONG_SIDE = 360
+const natW = ref(0)
+const natH = ref(0)
+
+function onImageLoad(e: Event) {
+  const img = e.target as HTMLImageElement
+  natW.value = img.naturalWidth
+  natH.value = img.naturalHeight
+}
+
+const display = computed(() => {
+  if (!natW.value || !natH.value) return { width: MIN_LONG_SIDE, height: MIN_LONG_SIDE, scale: 1 }
+  const maxW = window.innerWidth * 0.92
+  const maxH = window.innerHeight * 0.7
+  const longest = Math.max(natW.value, natH.value)
+  // upscale small images so the longer side reaches the minimum
+  let scale = longest < MIN_LONG_SIDE ? MIN_LONG_SIDE / longest : 1
+  // then clamp so nothing overflows the viewport
+  scale *= Math.min(maxW / (natW.value * scale), maxH / (natH.value * scale), 1)
+  return {
+    width: Math.round(natW.value * scale),
+    height: Math.round(natH.value * scale),
+    scale,
+  }
+})
+
+const boxStyle = computed(() => ({ width: `${display.value.width}px`, height: `${display.value.height}px` }))
+// Crisp pixels when upscaling (so differences are visible, not blurred away).
+const pixelated = computed(() => display.value.scale > 1)
+
 function setFromClientX(clientX: number) {
   const el = area.value
   if (!el) return
@@ -76,16 +110,25 @@ onBeforeUnmount(() => {
       <div
         ref="area"
         class="compare-checker relative cursor-ew-resize touch-none select-none overflow-hidden rounded-lg shadow-2xl"
+        :style="boxStyle"
         @pointerdown="onDown"
       >
-        <!-- bottom layer = optimized (sizes the box) -->
-        <img :src="optimized.url" alt="optimized" draggable="false" class="block max-h-[78vh] max-w-[92vw] object-contain" />
+        <!-- bottom layer = optimized -->
+        <img
+          :src="optimized.url"
+          alt="optimized"
+          draggable="false"
+          class="absolute inset-0 h-full w-full object-contain"
+          :class="{ pixelated }"
+          @load="onImageLoad"
+        />
         <!-- top layer = original, clipped to the left of the divider -->
         <img
           :src="original.url"
           alt="original"
           draggable="false"
           class="pointer-events-none absolute inset-0 h-full w-full object-contain"
+          :class="{ pixelated }"
           :style="{ clipPath: `inset(0 ${100 - pos}% 0 0)` }"
         />
 
@@ -107,14 +150,15 @@ onBeforeUnmount(() => {
     </div>
 
     <!-- range fallback -->
-    <div class="px-6 pb-5">
-      <input v-model.number="pos" type="range" min="0" max="100" class="accent-accent w-full" aria-label="Compare position" />
-      <p class="mt-1 text-center text-xs text-white/50">Drag the divider (or arrow keys) · Esc to close</p>
-    </div>
+    <p class="pb-5 text-center text-xs text-white/45">Drag the divider · arrow keys to nudge · Esc to close</p>
   </div>
 </template>
 
 <style scoped>
+/* Keep upscaled pixels crisp so compression differences stay visible. */
+.pixelated {
+  image-rendering: pixelated;
+}
 .compare-checker {
   background-color: #fff;
   background-image:

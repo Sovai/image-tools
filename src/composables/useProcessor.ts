@@ -13,10 +13,14 @@ import { namespaceIds } from '../lib/namespace-ids'
 
 // --- raster worker pool -----------------------------------------------------
 
-interface RasterTask {
+interface RasterHandlers {
+  onProgress: (progress: number, stage: string) => void
+  onOutput: (output: RasterOutput) => void
+}
+
+interface RasterTask extends RasterHandlers {
   req: RasterRequest
-  onProgress: (p: number) => void
-  resolve: (o: RasterOutput[]) => void
+  resolve: () => void
   reject: (e: Error) => void
 }
 
@@ -44,9 +48,9 @@ class RasterPool {
     }
   }
 
-  process(req: RasterRequest, onProgress: (p: number) => void): Promise<RasterOutput[]> {
+  process(req: RasterRequest, handlers: RasterHandlers): Promise<void> {
     return new Promise((resolve, reject) => {
-      this.queue.push({ req, onProgress, resolve, reject })
+      this.queue.push({ req, ...handlers, resolve, reject })
       this.pump()
     })
   }
@@ -73,11 +77,13 @@ class RasterPool {
     const task = this.tasks.get(msg.id)
     if (!task) return
     if (msg.type === 'progress') {
-      task.onProgress(msg.progress)
+      task.onProgress(msg.progress, msg.stage)
+    } else if (msg.type === 'output') {
+      task.onOutput(msg.output)
     } else if (msg.type === 'done') {
       this.tasks.delete(msg.id)
       this.free(pw)
-      task.resolve(msg.outputs)
+      task.resolve()
     } else {
       this.tasks.delete(msg.id)
       this.free(pw)
@@ -151,12 +157,22 @@ export function useProcessor() {
       result.thumbnailUrl = trackUrl(file)
       const buffer = await file.arrayBuffer()
       result.status = 'processing'
-      const outputs = await pool.process(
+      result.outputs = []
+      await pool.process(
         { id: result.id, mime: result.mime, name: file.name, buffer },
-        (p) => (result.progress = p),
+        {
+          onProgress: (p, stage) => {
+            result.progress = p
+            result.stage = stage
+          },
+          // Each format streams in as it finishes (revealed immediately), but
+          // the winner is only decided once every output is in — see below.
+          onOutput: (output) => {
+            result.outputs!.push(output)
+          },
+        },
       )
-      result.outputs = outputs
-      result.winner = pickWinner(outputs)
+      result.winner = pickWinner(result.outputs)
       result.progress = 100
       result.status = 'done'
     } catch (err) {

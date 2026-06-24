@@ -71,6 +71,8 @@ export interface FileResult {
   kind: FileKind
   status: FileStatus
   progress: number
+  /** Human-readable current step, e.g. "Encoding AVIF (slowest)…". */
+  stage?: string
   error?: string
   originalSize: number
   thumbnailUrl?: string
@@ -98,12 +100,19 @@ export interface RasterProgressMsg {
   type: 'progress'
   id: string
   progress: number
+  stage: string
+}
+
+/** Emitted once per output as soon as it finishes encoding (streamed). */
+export interface RasterOutputMsg {
+  type: 'output'
+  id: string
+  output: RasterOutput
 }
 
 export interface RasterDoneMsg {
   type: 'done'
   id: string
-  outputs: RasterOutput[]
 }
 
 export interface RasterErrorMsg {
@@ -112,7 +121,7 @@ export interface RasterErrorMsg {
   message: string
 }
 
-export type RasterResponse = RasterProgressMsg | RasterDoneMsg | RasterErrorMsg
+export type RasterResponse = RasterProgressMsg | RasterOutputMsg | RasterDoneMsg | RasterErrorMsg
 
 // --- Worker message protocol (svg / SVGO) ---------------------------------
 

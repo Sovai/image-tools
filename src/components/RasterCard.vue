@@ -1,10 +1,14 @@
 <script setup lang="ts">
-import { Download, Crown, X, SplitSquareHorizontal } from '@lucide/vue'
+import { ref } from 'vue'
+import { Download, Crown, X, SplitSquareHorizontal, Loader2, Info } from '@lucide/vue'
 import type { FileResult, RasterOutput } from '../types'
 import { formatBytes, formatPct } from '../lib/format'
+import OutputInfoModal from './OutputInfoModal.vue'
 
 defineProps<{ result: FileResult }>()
 const emit = defineEmits<{ download: [RasterOutput]; compare: [RasterOutput]; remove: [] }>()
+
+const showInfo = ref(false)
 </script>
 
 <template>
@@ -19,21 +23,37 @@ const emit = defineEmits<{ download: [RasterOutput]; compare: [RasterOutput]; re
             <div class="truncate font-medium" :title="result.name">{{ result.name }}</div>
             <div class="text-xs text-text-secondary">{{ formatBytes(result.originalSize) }} original</div>
           </div>
-          <button
-            class="rounded-md p-1 text-text-secondary hover:bg-hover hover:text-text-primary"
-            title="Remove"
-            @click="emit('remove')"
-          >
-            <X :size="16" />
-          </button>
+          <div class="flex shrink-0 items-center gap-0.5">
+            <button
+              class="rounded-md p-1 hover:bg-hover hover:text-text-primary"
+              :class="showInfo ? 'text-accent' : 'text-text-secondary'"
+              title="What do these outputs mean?"
+              @click="showInfo = !showInfo"
+            >
+              <Info :size="16" />
+            </button>
+            <button
+              class="rounded-md p-1 text-text-secondary hover:bg-hover hover:text-text-primary"
+              title="Remove"
+              @click="emit('remove')"
+            >
+              <X :size="16" />
+            </button>
+          </div>
         </div>
 
         <!-- progress -->
         <div v-if="result.status !== 'done' && result.status !== 'error'" class="mt-3">
           <div class="h-1.5 w-full overflow-hidden rounded-full bg-hover">
-            <div class="h-full rounded-full bg-accent transition-all" :style="{ width: `${result.progress}%` }" />
+            <div class="relative h-full rounded-full bg-accent transition-all duration-300" :style="{ width: `${Math.max(result.progress, 4)}%` }">
+              <div class="progress-shimmer absolute inset-0" />
+            </div>
           </div>
-          <div class="mt-1 text-xs text-text-secondary">Encoding… {{ result.progress }}%</div>
+          <div class="mt-1 flex items-center gap-1.5 text-xs text-text-secondary">
+            <Loader2 :size="13" class="animate-spin" />
+            <span>{{ result.stage || 'Working…' }}</span>
+            <span class="ml-auto tabular-nums">{{ result.progress }}%</span>
+          </div>
         </div>
 
         <div v-else-if="result.status === 'error'" class="mt-3 text-sm text-red-500">
@@ -42,8 +62,8 @@ const emit = defineEmits<{ download: [RasterOutput]; compare: [RasterOutput]; re
       </div>
     </div>
 
-    <!-- outputs -->
-    <div v-if="result.status === 'done' && result.outputs" class="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+    <!-- outputs (revealed progressively as each format finishes) -->
+    <div v-if="result.outputs && result.outputs.length" class="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
       <div
         v-for="o in result.outputs"
         :key="o.kind"
@@ -93,5 +113,35 @@ const emit = defineEmits<{ download: [RasterOutput]; compare: [RasterOutput]; re
         </div>
       </div>
     </div>
+
+    <OutputInfoModal
+      v-if="showInfo"
+      :name="result.name"
+      :outputs="result.outputs ?? []"
+      @close="showInfo = false"
+    />
   </div>
 </template>
+
+<style scoped>
+/* Moving sheen over the filled portion so a long-running step never looks
+   frozen, even while the percentage is static. */
+.progress-shimmer {
+  background-image: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.55), transparent);
+  background-size: 200% 100%;
+  animation: progress-shimmer 1.2s linear infinite;
+}
+@keyframes progress-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .progress-shimmer {
+    animation: none;
+  }
+}
+</style>
