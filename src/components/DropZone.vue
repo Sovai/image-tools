@@ -55,10 +55,10 @@ function open() {
       class="pointer-events-none absolute h-5 w-5 transition-all duration-300"
       :class="[
         dragging ? 'border-accent' : 'border-text-secondary/35',
-        c === 'tl' && 'left-3 top-3 border-l-2 border-t-2 group-hover:left-2 group-hover:top-2',
-        c === 'tr' && 'right-3 top-3 border-r-2 border-t-2 group-hover:right-2 group-hover:top-2',
-        c === 'bl' && 'bottom-3 left-3 border-b-2 border-l-2 group-hover:bottom-2 group-hover:left-2',
-        c === 'br' && 'bottom-3 right-3 border-b-2 border-r-2 group-hover:bottom-2 group-hover:right-2',
+        c === 'tl' && 'left-3 top-3 border-l-2 border-t-2 group-hover:left-2 group-hover:top-2 group-hover:rounded-tl-lg',
+        c === 'tr' && 'right-3 top-3 border-r-2 border-t-2 group-hover:right-2 group-hover:top-2 group-hover:rounded-tr-lg',
+        c === 'bl' && 'bottom-3 left-3 border-b-2 border-l-2 group-hover:bottom-2 group-hover:left-2 group-hover:rounded-bl-lg',
+        c === 'br' && 'bottom-3 right-3 border-b-2 border-r-2 group-hover:bottom-2 group-hover:right-2 group-hover:rounded-br-lg',
       ]"
     />
 
