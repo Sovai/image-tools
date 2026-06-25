@@ -34,18 +34,13 @@ const capabilities = [
         <img :src="isDark ? logoDark : logoLight" alt="" class="h-8 w-8" />
         <span class="font-display text-base font-semibold tracking-tight">Image Tools</span>
       </div>
-      <div class="flex items-center gap-3">
-        <span class="hidden items-center gap-1.5 font-mono text-[11px] uppercase tracking-[0.16em] text-text-secondary sm:inline-flex">
-          <span class="h-1.5 w-1.5 rounded-full bg-accent" /> No upload
-        </span>
-        <button
-          class="grid size-9 place-items-center rounded-full border border-border-default bg-bg-secondary transition-colors hover:bg-hover"
-          :aria-label="isDark ? 'Switch to light mode' : 'Switch to dark mode'"
-          @click="emit('toggleDark')"
-        >
-          <component :is="isDark ? Sun : Moon" :size="16" />
-        </button>
-      </div>
+      <button
+        class="grid size-9 place-items-center rounded-full border border-border-default bg-bg-secondary transition-colors hover:bg-hover"
+        :aria-label="isDark ? 'Switch to light mode' : 'Switch to dark mode'"
+        @click="emit('toggleDark')"
+      >
+        <component :is="isDark ? Sun : Moon" :size="16" />
+      </button>
     </header>
 
     <!-- hero -->
