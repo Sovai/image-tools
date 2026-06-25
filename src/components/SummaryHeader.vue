@@ -20,22 +20,22 @@ const positive = computed(() => props.summary.savedBytes > 0)
 <template>
   <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
     <div class="rounded-xl border border-border-default bg-card p-4">
-      <div class="text-xs font-medium uppercase tracking-wide text-text-secondary">Files</div>
-      <div class="mt-1 text-2xl font-semibold tabular-nums">{{ summary.done }}/{{ summary.count }}</div>
+      <div class="font-mono text-[11px] uppercase tracking-[0.16em] text-text-secondary">Files</div>
+      <div class="mt-1 font-mono text-2xl font-semibold tabular-nums">{{ summary.done }}/{{ summary.count }}</div>
     </div>
     <div class="rounded-xl border border-border-default bg-card p-4">
-      <div class="text-xs font-medium uppercase tracking-wide text-text-secondary">Original</div>
-      <div class="mt-1 text-2xl font-semibold tabular-nums">{{ formatBytes(summary.originalTotal) }}</div>
+      <div class="font-mono text-[11px] uppercase tracking-[0.16em] text-text-secondary">Original</div>
+      <div class="mt-1 font-mono text-2xl font-semibold tabular-nums">{{ formatBytes(summary.originalTotal) }}</div>
     </div>
     <div class="rounded-xl border border-border-default bg-card p-4">
-      <div class="text-xs font-medium uppercase tracking-wide text-text-secondary">Optimized</div>
-      <div class="mt-1 text-2xl font-semibold tabular-nums">{{ formatBytes(summary.optimizedTotal) }}</div>
+      <div class="font-mono text-[11px] uppercase tracking-[0.16em] text-text-secondary">Optimized</div>
+      <div class="mt-1 font-mono text-2xl font-semibold tabular-nums">{{ formatBytes(summary.optimizedTotal) }}</div>
     </div>
     <div
       class="rounded-xl border p-4"
       :class="positive ? 'border-accent/40 bg-accent/10' : 'border-border-default bg-card'"
     >
-      <div class="text-xs font-medium uppercase tracking-wide" :class="positive ? 'text-accent' : 'text-text-secondary'">
+      <div class="font-mono text-[11px] uppercase tracking-[0.16em]" :class="positive ? 'text-accent' : 'text-text-secondary'">
         Saved
       </div>
       <div class="mt-1 text-2xl font-semibold tabular-nums" :class="positive ? 'text-accent' : ''">

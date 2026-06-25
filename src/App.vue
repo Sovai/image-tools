@@ -1,30 +1,28 @@
 <template>
   <div class="min-h-screen bg-bg-primary text-text-primary">
-    <div class="mx-auto max-w-5xl px-4 py-8">
-      <header class="mb-8 flex items-center justify-between gap-4">
-        <div class="flex items-center gap-3">
-          <img :src="isDark ? logoDark : logoLight" alt="" class="h-11 w-11" />
-          <div>
-            <h1 class="text-lg font-bold tracking-tight sm:text-xl">
-              Image Tools
-            </h1>
-            <p class="text-xs text-text-secondary sm:text-sm">
-              Lossless · Lossy optimization + SVG health check
-            </p>
-          </div>
+    <!-- LANDING — empty state showcase -->
+    <LandingHero v-if="!files.length" :is-dark="isDark" @files="addFiles" @toggle-dark="toggleDark" />
+
+    <!-- WORKING — results -->
+    <div v-else class="mx-auto max-w-5xl px-5 py-7 sm:px-8">
+      <header class="mb-7 flex items-center justify-between gap-4">
+        <div class="flex items-center gap-2.5">
+          <img :src="isDark ? logoDark : logoLight" alt="" class="h-8 w-8" />
+          <span class="font-display text-base font-semibold tracking-tight">Image Tools</span>
         </div>
         <button
-          class="size-10 inline-flex items-center gap-1.5 rounded-full border border-border-default bg-bg-secondary px-3 py-1.5 text-sm font-medium transition-colors hover:bg-hover"
+          class="grid size-9 place-items-center rounded-full border border-border-default bg-bg-secondary transition-colors hover:bg-hover"
+          :aria-label="isDark ? 'Switch to light mode' : 'Switch to dark mode'"
           @click="toggleDark"
         >
           <component :is="isDark ? Sun : Moon" :size="16" />
         </button>
       </header>
 
-      <DropZone @files="addFiles" />
+      <DropZone variant="bar" @files="addFiles" />
 
       <template v-if="files.length">
-        <div class="mt-6 flex flex-wrap items-center gap-2">
+        <div class="mt-5 flex flex-wrap items-center gap-2">
           <button
             class="inline-flex items-center gap-1.5 rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-40"
             :disabled="!hasDone"
@@ -61,9 +59,9 @@
 
         <section v-if="rasterFiles.length" class="mt-6 space-y-3">
           <h2
-            class="flex items-center gap-1.5 text-sm font-semibold uppercase tracking-wide text-text-secondary"
+            class="flex items-center gap-1.5 font-mono text-xs uppercase tracking-[0.18em] text-text-secondary"
           >
-            <ImageIcon :size="15" /> Raster — {{ rasterFiles.length }}
+            <ImageIcon :size="14" /> Raster — {{ rasterFiles.length }}
           </h2>
           <RasterCard
             v-for="f in rasterFiles"
@@ -77,9 +75,9 @@
 
         <section v-if="svgFiles.length" class="mt-6 space-y-3">
           <h2
-            class="flex items-center gap-1.5 text-sm font-semibold uppercase tracking-wide text-text-secondary"
+            class="flex items-center gap-1.5 font-mono text-xs uppercase tracking-[0.18em] text-text-secondary"
           >
-            <FileCode :size="15" /> SVG — {{ svgFiles.length }}
+            <FileCode :size="14" /> SVG — {{ svgFiles.length }}
           </h2>
           <SvgCard
             v-for="f in svgFiles"
@@ -109,9 +107,8 @@
         </section>
       </template>
 
-      <footer class="mt-12 text-center text-xs text-text-secondary">
-        oxipng · mozjpeg · WebP · AVIF (lossless wasm) · SVGO · runs entirely in
-        your browser
+      <footer class="mt-12 text-center font-mono text-[11px] tracking-wide text-text-secondary/70">
+        Runs entirely in your browser · oxipng · mozjpeg · WebP · AVIF · SVGO
       </footer>
     </div>
 
@@ -140,6 +137,7 @@ import { useProcessor } from "./composables/useProcessor";
 import { zipAll, zipWinners } from "./lib/zip";
 import type { FileResult, RasterOutput } from "./types";
 import DropZone from "./components/DropZone.vue";
+import LandingHero from "./components/LandingHero.vue";
 import SummaryHeader from "./components/SummaryHeader.vue";
 import SvgBatchPanel from "./components/SvgBatchPanel.vue";
 import RasterCard from "./components/RasterCard.vue";

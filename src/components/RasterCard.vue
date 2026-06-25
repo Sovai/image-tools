@@ -21,7 +21,7 @@ const showInfo = ref(false)
         <div class="flex items-start justify-between gap-2">
           <div class="min-w-0">
             <div class="truncate font-medium" :title="result.name">{{ result.name }}</div>
-            <div class="text-xs text-text-secondary">{{ formatBytes(result.originalSize) }} original</div>
+            <div class="font-mono text-xs text-text-secondary">{{ formatBytes(result.originalSize) }} original</div>
           </div>
           <div class="flex shrink-0 items-center gap-0.5">
             <button
@@ -87,7 +87,7 @@ const showInfo = ref(false)
           </span>
           <span v-else-if="!o.smaller" class="shrink-0 text-[10px] font-semibold uppercase text-text-secondary">skip — larger</span>
         </div>
-        <div class="mt-1 tabular-nums">
+        <div class="mt-1 font-mono tabular-nums">
           <span class="text-sm">{{ formatBytes(o.size) }}</span>
           <span class="ml-1 text-xs" :class="o.smaller ? 'text-emerald-600 dark:text-emerald-400' : 'text-text-secondary'">
             {{ formatPct(o.savedPct) }}

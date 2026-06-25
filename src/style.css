@@ -2,6 +2,8 @@
 
 @theme {
   --font-sans: 'Google Sans', 'Inter', system-ui, Avenir, Helvetica, Arial, sans-serif;
+  --font-display: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
   --color-bg-primary: var(--bg-color);
   --color-bg-secondary: var(--bg-secondary);
   --color-text-primary: var(--text-primary);
@@ -51,8 +53,19 @@ body {
   background-color: var(--bg-color);
   color: var(--text-primary);
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 #app {
   min-height: 100vh;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--accent-color) 28%, transparent);
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent-color);
+  outline-offset: 2px;
+  border-radius: 2px;
 }
