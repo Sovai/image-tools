@@ -4,3 +4,5 @@ node_modules
 .vscode/*
 !.vscode/extensions.json
 .claude
+dist
+dist-ssr
