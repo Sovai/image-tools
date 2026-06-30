@@ -60,7 +60,28 @@ export interface SvgData {
 }
 
 export type FileKind = 'raster' | 'svg' | 'unsupported'
-export type FileStatus = 'queued' | 'processing' | 'done' | 'error'
+// 'ready' = loaded, size set, waiting for the user to optimize.
+export type FileStatus = 'ready' | 'queued' | 'processing' | 'done' | 'error'
+
+/** Crop (in source pixels) + output size applied to a raster before encoding. */
+export interface Transform {
+  cropX: number
+  cropY: number
+  cropW: number
+  cropH: number
+  outW: number
+  outH: number
+  /** When true, output W/H stay locked to the crop's aspect ratio. */
+  lockAspect: boolean
+}
+
+/** Global "downscale on import" default. */
+export type ResizeMode = 'none' | 'half' | 'third' | 'quarter' | 'max'
+export interface GlobalResize {
+  mode: ResizeMode
+  /** Longest-side cap in px, used when mode === 'max'. */
+  maxDim: number
+}
 
 export interface FileResult {
   id: string
@@ -78,6 +99,13 @@ export interface FileResult {
   thumbnailUrl?: string
 
   // raster
+  /** Source pixel dimensions (rasters only). */
+  naturalWidth?: number
+  naturalHeight?: number
+  /** Crop + resize to apply before encoding. */
+  transform?: Transform
+  /** True once the user has manually edited this file's transform. */
+  edited?: boolean
   outputs?: RasterOutput[]
   winner?: RasterOutput
 
@@ -94,6 +122,8 @@ export interface RasterRequest {
   mime: string
   name: string
   buffer: ArrayBuffer
+  /** Optional crop + resize applied before encoding (null = original pixels). */
+  transform?: Transform | null
 }
 
 export interface RasterProgressMsg {

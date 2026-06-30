@@ -1,14 +1,32 @@
 <script setup lang="ts">
-import { ref } from 'vue'
-import { Download, Crown, X, SplitSquareHorizontal, Loader2, Info } from '@lucide/vue'
+import { computed, ref } from 'vue'
+import { Download, Crown, X, SplitSquareHorizontal, Loader2, Info, Crop, Sparkles } from '@lucide/vue'
 import type { FileResult, RasterOutput } from '../types'
 import { formatBytes, formatPct } from '../lib/format'
 import OutputInfoModal from './OutputInfoModal.vue'
 
-defineProps<{ result: FileResult }>()
-const emit = defineEmits<{ download: [RasterOutput]; compare: [RasterOutput]; remove: [] }>()
+const props = defineProps<{ result: FileResult }>()
+const emit = defineEmits<{
+  download: [RasterOutput]
+  compare: [RasterOutput]
+  edit: []
+  optimize: []
+  remove: []
+}>()
 
 const showInfo = ref(false)
+
+// "1290 × 800 → 430 × 267" when resized, else just the source dims.
+const dimLine = computed(() => {
+  const t = props.result.transform
+  const w = props.result.naturalWidth
+  const h = props.result.naturalHeight
+  if (!w || !h) return ''
+  if (t && (t.outW !== w || t.outH !== h || t.cropW !== w || t.cropH !== h)) {
+    return `${w} × ${h} → ${t.outW} × ${t.outH}`
+  }
+  return `${w} × ${h}`
+})
 </script>
 
 <template>
@@ -21,10 +39,20 @@ const showInfo = ref(false)
         <div class="flex items-start justify-between gap-2">
           <div class="min-w-0">
             <div class="truncate font-medium" :title="result.name">{{ result.name }}</div>
-            <div class="font-mono text-xs text-text-secondary">{{ formatBytes(result.originalSize) }} original</div>
+            <div class="font-mono text-xs text-text-secondary">
+              {{ formatBytes(result.originalSize) }}<template v-if="dimLine"> · {{ dimLine }}</template>
+            </div>
           </div>
           <div class="flex shrink-0 items-center gap-0.5">
             <button
+              class="rounded-md p-1 text-text-secondary hover:bg-hover hover:text-text-primary"
+              title="Resize & crop"
+              @click="emit('edit')"
+            >
+              <Crop :size="16" />
+            </button>
+            <button
+              v-if="result.status === 'done'"
               class="rounded-md p-1 hover:bg-hover hover:text-text-primary"
               :class="showInfo ? 'text-accent' : 'text-text-secondary'"
               title="What do these outputs mean?"
@@ -42,8 +70,24 @@ const showInfo = ref(false)
           </div>
         </div>
 
+        <!-- ready: awaiting optimize -->
+        <div v-if="result.status === 'ready'" class="mt-3 flex flex-wrap items-center gap-2">
+          <button
+            class="inline-flex items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90"
+            @click="emit('optimize')"
+          >
+            <Sparkles :size="14" /> Optimize
+          </button>
+          <button
+            class="inline-flex items-center gap-1.5 rounded-md border border-border-default bg-bg-secondary px-3 py-1.5 text-xs font-medium transition-colors hover:bg-hover"
+            @click="emit('edit')"
+          >
+            <Crop :size="14" /> Resize &amp; crop
+          </button>
+        </div>
+
         <!-- progress -->
-        <div v-if="result.status !== 'done' && result.status !== 'error'" class="mt-3">
+        <div v-else-if="result.status === 'processing' || result.status === 'queued'" class="mt-3">
           <div class="h-1.5 w-full overflow-hidden rounded-full bg-hover">
             <div class="relative h-full rounded-full bg-accent transition-all duration-300" :style="{ width: `${Math.max(result.progress, 4)}%` }">
               <div class="progress-shimmer absolute inset-0" />

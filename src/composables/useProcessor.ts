@@ -1,11 +1,13 @@
-import { computed, reactive, ref } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import type {
   FileResult,
+  GlobalResize,
   RasterOutput,
   RasterRequest,
   RasterResponse,
   SvgRequest,
   SvgResponse,
+  Transform,
 } from '../types'
 import { classifyMime, slugify } from '../lib/format'
 import { analyzeSvg } from '../lib/svg-health'
@@ -132,6 +134,48 @@ class SvgOptimizer {
 export function useProcessor() {
   const files = ref<FileResult[]>([])
   const objectUrls: string[] = []
+  // Original File objects kept so a file can be (re-)optimized at any size.
+  const sourceFiles = new Map<string, File>()
+
+  // Global "downscale on import" default, overridable per image.
+  const globalResize = ref<GlobalResize>({ mode: 'none', maxDim: 1600 })
+
+  function scaleFor(w: number, h: number): number {
+    const g = globalResize.value
+    if (g.mode === 'half') return 0.5
+    if (g.mode === 'third') return 1 / 3
+    if (g.mode === 'quarter') return 0.25
+    if (g.mode === 'max') {
+      const longest = Math.max(w, h)
+      return longest > g.maxDim ? g.maxDim / longest : 1
+    }
+    return 1
+  }
+  function defaultTransform(w: number, h: number): Transform {
+    const s = scaleFor(w, h)
+    return {
+      cropX: 0,
+      cropY: 0,
+      cropW: w,
+      cropH: h,
+      outW: Math.max(1, Math.round(w * s)),
+      outH: Math.max(1, Math.round(h * s)),
+      lockAspect: true,
+    }
+  }
+
+  // Re-apply the global default to ready files the user hasn't hand-edited.
+  watch(
+    globalResize,
+    () => {
+      for (const f of files.value) {
+        if (f.kind === 'raster' && f.status === 'ready' && !f.edited && f.naturalWidth && f.naturalHeight) {
+          f.transform = defaultTransform(f.naturalWidth, f.naturalHeight)
+        }
+      }
+    },
+    { deep: true },
+  )
 
   const poolSize = Math.max(1, Math.min((navigator.hardwareConcurrency || 4) - 1, 4))
   const pool = new RasterPool(poolSize)
@@ -152,21 +196,40 @@ export function useProcessor() {
     return smaller.reduce((best, o) => (o.size < best.size ? o : best))
   }
 
-  async function processRaster(file: File, result: FileResult) {
+  // Read source dimensions and seed the default transform; stays 'ready'.
+  async function initRaster(result: FileResult, file: File) {
     try {
-      result.thumbnailUrl = trackUrl(file)
+      const bmp = await createImageBitmap(file)
+      const w = bmp.width
+      const h = bmp.height
+      bmp.close()
+      result.naturalWidth = w
+      result.naturalHeight = h
+      result.transform = defaultTransform(w, h)
+    } catch {
+      // Couldn't read dimensions — optimize at original size, no resize.
+      result.transform = undefined
+    }
+  }
+
+  async function optimizeFile(result: FileResult) {
+    const file = sourceFiles.get(result.id)
+    if (!file) return
+    try {
       const buffer = await file.arrayBuffer()
       result.status = 'processing'
+      result.progress = 0
       result.outputs = []
+      result.winner = undefined
       await pool.process(
-        { id: result.id, mime: result.mime, name: file.name, buffer },
+        // Clone the transform — a reactive proxy can't be structured-cloned to the worker.
+        { id: result.id, mime: result.mime, name: file.name, buffer, transform: result.transform ? { ...result.transform } : null },
         {
           onProgress: (p, stage) => {
             result.progress = p
             result.stage = stage
           },
-          // Each format streams in as it finishes (revealed immediately), but
-          // the winner is only decided once every output is in — see below.
+          // Each format streams in as it finishes; winner decided at the end.
           onOutput: (output) => {
             result.outputs!.push(output)
           },
@@ -179,6 +242,19 @@ export function useProcessor() {
       result.status = 'error'
       result.error = err instanceof Error ? err.message : String(err)
     }
+  }
+
+  function optimizeAll() {
+    for (const f of files.value) {
+      if (f.kind === 'raster' && f.status === 'ready') void optimizeFile(f)
+    }
+  }
+
+  /** Apply an edited transform from the editor and (re-)optimize that file. */
+  function applyTransform(result: FileResult, transform: Transform) {
+    result.transform = transform
+    result.edited = true
+    void optimizeFile(result)
   }
 
   async function processSvg(file: File, result: FileResult) {
@@ -223,15 +299,21 @@ export function useProcessor() {
         slug: slugify(file.name),
         mime,
         kind,
-        status: kind === 'unsupported' ? 'error' : 'queued',
+        // Rasters wait in 'ready' (resize first); SVGs (vector) process now.
+        status: kind === 'unsupported' ? 'error' : kind === 'svg' ? 'processing' : 'ready',
         progress: 0,
         originalSize: file.size,
         error: kind === 'unsupported' ? 'Unsupported file type' : undefined,
       }) as FileResult
       files.value.push(result)
 
-      if (kind === 'raster') void processRaster(file, result)
-      else if (kind === 'svg') void processSvg(file, result)
+      if (kind === 'raster') {
+        sourceFiles.set(result.id, file)
+        result.thumbnailUrl = trackUrl(file)
+        void initRaster(result, file)
+      } else if (kind === 'svg') {
+        void processSvg(file, result)
+      }
     }
   }
 
@@ -262,10 +344,12 @@ export function useProcessor() {
 
   function removeFile(id: string) {
     files.value = files.value.filter((f) => f.id !== id)
+    sourceFiles.delete(id)
   }
 
   function clearAll() {
     for (const url of objectUrls.splice(0)) URL.revokeObjectURL(url)
+    sourceFiles.clear()
     files.value = []
   }
 
@@ -348,13 +432,22 @@ export function useProcessor() {
     return { total: svgFiles.value.length, counts }
   })
 
+  const readyCount = computed(
+    () => files.value.filter((f) => f.kind === 'raster' && f.status === 'ready').length,
+  )
+
   return {
     files,
     summary,
     svgFiles,
     svgSummary,
     crossFileCollisions,
+    globalResize,
+    readyCount,
     addFiles,
+    optimizeFile,
+    optimizeAll,
+    applyTransform,
     removeFile,
     clearAll,
     applyNamespaceFix,

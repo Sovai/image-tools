@@ -9,7 +9,7 @@ import { decode as decodeWebp, encode as encodeWebp } from '@jsquash/webp'
 import { encode as encodeAvif } from '@jsquash/avif'
 import { applyPaletteSync, buildPaletteSync, utils as iqUtils } from 'image-q'
 
-import type { RasterKind, RasterOutput, RasterRequest, RasterResponse } from '../types'
+import type { RasterKind, RasterOutput, RasterRequest, RasterResponse, Transform } from '../types'
 
 const ctx = self as unknown as DedicatedWorkerGlobalScope
 
@@ -104,6 +104,23 @@ async function encodeOptimized(mime: string, image: ImageData): Promise<Descript
   }
 }
 
+function isIdentity(t: Transform, w: number, h: number): boolean {
+  return t.cropX === 0 && t.cropY === 0 && t.cropW === w && t.cropH === h && t.outW === w && t.outH === h
+}
+
+// Crop (source rect) then scale to the output size, with high-quality
+// resampling. Runs on an OffscreenCanvas inside the worker.
+function transformImage(image: ImageData, t: Transform): ImageData {
+  const src = new OffscreenCanvas(image.width, image.height)
+  src.getContext('2d')!.putImageData(image, 0, 0)
+  const dst = new OffscreenCanvas(t.outW, t.outH)
+  const ctx = dst.getContext('2d')!
+  ctx.imageSmoothingEnabled = true
+  ctx.imageSmoothingQuality = 'high'
+  ctx.drawImage(src, t.cropX, t.cropY, t.cropW, t.cropH, 0, 0, t.outW, t.outH)
+  return ctx.getImageData(0, 0, t.outW, t.outH)
+}
+
 async function process(req: RasterRequest) {
   const originalSize = req.buffer.byteLength
 
@@ -125,7 +142,12 @@ async function process(req: RasterRequest) {
   }
 
   progress(5, 'Decoding…')
-  const image = await decode(req.mime, req.buffer)
+  let image = await decode(req.mime, req.buffer)
+
+  if (req.transform && !isIdentity(req.transform, image.width, image.height)) {
+    progress(12, 'Resizing…')
+    image = transformImage(image, req.transform)
+  }
 
   // 1. Optimized original (same format). Lossless for PNG/WebP, visually
   //    lossless for JPEG (mozjpeg has no bit-exact re-encode).

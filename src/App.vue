@@ -22,27 +22,60 @@
       <DropZone variant="bar" @files="addFiles" />
 
       <template v-if="files.length">
-        <div class="mt-5 flex flex-wrap items-center gap-2">
-          <button
-            class="inline-flex items-center gap-1.5 rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-40"
-            :disabled="!hasDone"
-            @click="zipWinners(files)"
-          >
-            <Download :size="16" /> Download winners
-          </button>
-          <button
-            class="inline-flex items-center gap-1.5 rounded-lg border border-border-default bg-bg-secondary px-4 py-2 text-sm font-medium transition-colors hover:bg-hover disabled:opacity-40"
-            :disabled="!hasDone"
-            @click="zipAll(files)"
-          >
-            <Package :size="16" /> Download all
-          </button>
-          <button
-            class="ml-auto inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-text-secondary transition-colors hover:bg-hover hover:text-text-primary"
-            @click="clearAll"
-          >
-            <Trash2 :size="16" /> Clear all
-          </button>
+        <div class="mt-5 flex flex-wrap items-center gap-x-4 gap-y-3">
+          <!-- global downscale on import -->
+          <div class="flex items-center gap-2">
+            <span class="font-mono text-[11px] uppercase tracking-[0.16em] text-text-secondary">Downscale</span>
+            <div class="flex overflow-hidden rounded-lg border border-border-default">
+              <button
+                v-for="m in resizeModes"
+                :key="m.v"
+                class="px-2.5 py-1.5 text-xs font-medium transition-colors"
+                :class="globalResize.mode === m.v ? 'bg-accent text-white' : 'bg-bg-secondary hover:bg-hover'"
+                @click="globalResize.mode = m.v"
+              >
+                {{ m.l }}
+              </button>
+            </div>
+            <input
+              v-if="globalResize.mode === 'max'"
+              v-model.number="globalResize.maxDim"
+              type="number"
+              min="1"
+              title="Longest side (px)"
+              class="w-20 rounded-md border border-border-default bg-input px-2 py-1.5 font-mono text-xs tabular-nums focus:border-accent"
+            />
+          </div>
+
+          <div class="ml-auto flex flex-wrap items-center gap-2">
+            <button
+              v-if="readyCount"
+              class="inline-flex items-center gap-1.5 rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+              @click="optimizeAll"
+            >
+              <Sparkles :size="16" /> Optimize all ({{ readyCount }})
+            </button>
+            <button
+              class="inline-flex items-center gap-1.5 rounded-lg border border-border-default bg-bg-secondary px-4 py-2 text-sm font-semibold transition-colors hover:bg-hover disabled:opacity-40"
+              :disabled="!hasDone"
+              @click="zipWinners(files)"
+            >
+              <Download :size="16" /> Winners
+            </button>
+            <button
+              class="inline-flex items-center gap-1.5 rounded-lg border border-border-default bg-bg-secondary px-4 py-2 text-sm font-medium transition-colors hover:bg-hover disabled:opacity-40"
+              :disabled="!hasDone"
+              @click="zipAll(files)"
+            >
+              <Package :size="16" /> All
+            </button>
+            <button
+              class="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-text-secondary transition-colors hover:bg-hover hover:text-text-primary"
+              @click="clearAll"
+            >
+              <Trash2 :size="16" /> Clear
+            </button>
+          </div>
         </div>
 
         <section class="mt-6">
@@ -69,6 +102,8 @@
             :result="f"
             @download="(o) => downloadOutput(f.name, o)"
             @compare="(o) => openCompare(f, o)"
+            @edit="openEditor(f)"
+            @optimize="optimizeFile(f)"
             @remove="removeFile(f.id)"
           />
         </section>
@@ -119,6 +154,18 @@
       :optimized="compare.optimized"
       @close="closeCompare"
     />
+
+    <ImageEditorModal
+      v-if="editing && editing.transform && editing.thumbnailUrl"
+      :name="editing.name"
+      :src="editing.thumbnailUrl"
+      :mime="editing.mime"
+      :natural-width="editing.naturalWidth!"
+      :natural-height="editing.naturalHeight!"
+      :transform="editing.transform"
+      @apply="onEditorApply"
+      @close="editing = null"
+    />
   </div>
 </template>
 
@@ -132,10 +179,11 @@ import {
   Trash2,
   ImageIcon,
   FileCode,
+  Sparkles,
 } from "@lucide/vue";
 import { useProcessor } from "./composables/useProcessor";
 import { zipAll, zipWinners } from "./lib/zip";
-import type { FileResult, RasterOutput } from "./types";
+import type { FileResult, RasterOutput, ResizeMode, Transform } from "./types";
 import DropZone from "./components/DropZone.vue";
 import LandingHero from "./components/LandingHero.vue";
 import SummaryHeader from "./components/SummaryHeader.vue";
@@ -143,6 +191,7 @@ import SvgBatchPanel from "./components/SvgBatchPanel.vue";
 import RasterCard from "./components/RasterCard.vue";
 import SvgCard from "./components/SvgCard.vue";
 import CompareModal from "./components/CompareModal.vue";
+import ImageEditorModal from "./components/ImageEditorModal.vue";
 import logoLight from "./assets/logo.png";
 import logoDark from "./assets/logo-dark.png";
 
@@ -152,13 +201,36 @@ const {
   svgFiles,
   svgSummary,
   crossFileCollisions,
+  globalResize,
+  readyCount,
   addFiles,
+  optimizeFile,
+  optimizeAll,
+  applyTransform,
   removeFile,
   clearAll,
   applyNamespaceFix,
   downloadOutput,
   downloadSvg,
 } = useProcessor();
+
+const resizeModes: { v: ResizeMode; l: string }[] = [
+  { v: "none", l: "None" },
+  { v: "half", l: "½" },
+  { v: "third", l: "⅓" },
+  { v: "quarter", l: "¼" },
+  { v: "max", l: "Max" },
+];
+
+// --- resize / crop editor ---------------------------------------------------
+const editing = ref<FileResult | null>(null);
+function openEditor(f: FileResult) {
+  if (f.naturalWidth && f.naturalHeight && f.transform) editing.value = f;
+}
+function onEditorApply(transform: Transform) {
+  if (editing.value) applyTransform(editing.value, transform);
+  editing.value = null;
+}
 
 // Light mode by default; persist the user's choice.
 const isDark = ref(localStorage.getItem("theme") === "dark");
